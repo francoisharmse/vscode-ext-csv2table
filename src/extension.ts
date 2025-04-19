@@ -63,6 +63,9 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
       tr:hover { background: #e2e2ff; }
       .sort-asc::after { content: ' ▲'; }
       .sort-desc::after { content: ' ▼'; }
+      .pagination { margin: 12px 0 0 0; display: flex; align-items: center; gap: 1em; }
+      .pagination button { padding: 4px 10px; margin: 0 2px; }
+      .pagination select { padding: 2px 6px; }
     </style>
   </head>
   <body>
@@ -70,39 +73,38 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
       <thead>
         <tr>
           <th>#</th>
-          ${fields.map((f, i) => `<th onclick="sortTable(${i})" id="header-${i}">${f}</th>`).join("")}
+          ${fields.map((f, i) => `<th onclick=\"sortTable(${i})\" id=\"header-${i}\">${f}</th>`).join("")}
         </tr>
         <tr>
           <th></th>
-          ${fields.map((_, i) => `<th><input class="filter-input" id="filter-${i}" oninput="onFilterInput()" placeholder="Filter..."></th>`).join("")}
+          ${fields.map((_, i) => `<th><input class=\"filter-input\" id=\"filter-${i}\" oninput=\"onFilterInput()\" placeholder=\"Filter...\"></th>`).join("")}
         </tr>
       </thead>
       <tbody id="table-body">
-        ${data
-          .map(
-            (row, idx) =>
-              `<tr><td>${idx + 1}</td>${fields
-                .map((f) => `<td>${row[f] ?? ""}</td>`)
-                .join("")}</tr>`
-          )
-          .join("")}
+        <!-- Table rows will be rendered by JS -->
       </tbody>
     </table>
+    <div class="pagination" id="pagination-controls">
+      <label>Rows per page:
+        <select id="page-size" onchange="onPageSizeChange()">
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="all">All</option>
+        </select>
+      </label>
+      <span id="page-buttons"></span>
+      <span id="page-info"></span>
+    </div>
     <script>
       const data = ${jsonData};
       const fields = ${jsonFields};
       let sortColumn = null;
       let sortDirection = 1; // 1 = asc, -1 = desc
       let filters = Array(fields.length).fill('');
-
-      function renderTable(rows) {
-        const tbody = document.getElementById('table-body');
-        tbody.innerHTML = rows.map((row, idx) =>
-          '<tr><td>' + (idx + 1) + '</td>' +
-          fields.map(f => '<td>' + (row[f] ?? '') + '</td>').join('') +
-          '</tr>'
-        ).join('');
-      }
+      let currentPage = 1;
+      let pageSize = 10;
 
       function getFilteredData() {
         return data.filter(row => {
@@ -114,13 +116,86 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
         });
       }
 
+      function sortData(rows, colIndex, direction) {
+        const field = fields[colIndex];
+        return [...rows].sort((a, b) => {
+          const aVal = a[field] ?? '';
+          const bVal = b[field] ?? '';
+          if (!isNaN(parseFloat(aVal)) && !isNaN(parseFloat(bVal))) {
+            return (parseFloat(aVal) - parseFloat(bVal)) * direction;
+          }
+          return aVal.localeCompare(bVal, undefined, {numeric: true}) * direction;
+        });
+      }
+
+      function renderTable(rows) {
+        const tbody = document.getElementById('table-body');
+        let pagedRows = rows;
+        let startIdx = 0;
+        if (pageSize !== 'all') {
+          pageSize = parseInt(pageSize);
+          startIdx = (currentPage - 1) * pageSize;
+          pagedRows = rows.slice(startIdx, startIdx + pageSize);
+        }
+        tbody.innerHTML = pagedRows.map((row, idx) =>
+          '<tr><td>' + (startIdx + idx + 1) + '</td>' +
+          fields.map(f => '<td>' + (row[f] ?? '') + '</td>').join('') +
+          '</tr>'
+        ).join('');
+        renderPagination(rows.length);
+      }
+
+      function renderPagination(totalRows) {
+        const pageButtons = document.getElementById('page-buttons');
+        const pageInfo = document.getElementById('page-info');
+        let totalPages = 1;
+        if (pageSize === 'all') {
+          totalPages = 1;
+          currentPage = 1;
+        } else {
+          totalPages = Math.ceil(totalRows / pageSize);
+          if (currentPage > totalPages) currentPage = totalPages;
+        }
+        let buttonsHtml = '';
+        if (totalPages > 1) {
+          buttonsHtml += '<button onclick="gotoPage(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>|<</button>';
+          buttonsHtml += '<button onclick="gotoPage(' + (currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '><</button>';
+          for (let p = 1; p <= totalPages; ++p) {
+            if (p === currentPage) {
+              buttonsHtml += '<button disabled>' + p + '</button>';
+            } else if (p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2) {
+              buttonsHtml += '<button onclick="gotoPage(' + p + ')">' + p + '</button>';
+            } else if (p === currentPage - 3 || p === currentPage + 3) {
+              buttonsHtml += '...';
+            }
+          }
+          buttonsHtml += '<button onclick="gotoPage(' + (currentPage + 1) + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>></button>';
+          buttonsHtml += '<button onclick="gotoPage(' + totalPages + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>>|</button>';
+        }
+        pageButtons.innerHTML = buttonsHtml;
+        pageInfo.textContent = totalRows === 0
+          ? 'No records'
+          : 'Showing ' + (pageSize === 'all' ? 1 : ((currentPage - 1) * pageSize + 1)) +
+            '–' + (pageSize === 'all' ? totalRows : Math.min(currentPage * pageSize, totalRows)) +
+            ' of ' + totalRows;
+      }
+
+      function gotoPage(page) {
+        currentPage = page;
+        updateTable();
+      }
+
+      function onPageSizeChange() {
+        const sel = document.getElementById('page-size');
+        pageSize = sel.value === 'all' ? 'all' : parseInt(sel.value);
+        currentPage = 1;
+        updateTable();
+      }
+
       function onFilterInput() {
         filters = fields.map((_, i) => document.getElementById('filter-' + i).value);
-        let filtered = getFilteredData();
-        if (sortColumn !== null) {
-          filtered = sortData(filtered, sortColumn, sortDirection);
-        }
-        renderTable(filtered);
+        currentPage = 1;
+        updateTable();
       }
 
       function sortTable(colIndex) {
@@ -136,23 +211,24 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
           document.getElementById('header-' + i).classList.remove('sort-asc', 'sort-desc');
         });
         document.getElementById('header-' + colIndex).classList.add(sortDirection === 1 ? 'sort-asc' : 'sort-desc');
-        // Sort
+        currentPage = 1;
+        updateTable();
+      }
+
+      function updateTable() {
         let filtered = getFilteredData();
-        filtered = sortData(filtered, colIndex, sortDirection);
+        if (sortColumn !== null) {
+          filtered = sortData(filtered, sortColumn, sortDirection);
+        }
         renderTable(filtered);
       }
 
-      function sortData(rows, colIndex, direction) {
-        const field = fields[colIndex];
-        return [...rows].sort((a, b) => {
-          const aVal = a[field] ?? '';
-          const bVal = b[field] ?? '';
-          if (!isNaN(parseFloat(aVal)) && !isNaN(parseFloat(bVal))) {
-            return (parseFloat(aVal) - parseFloat(bVal)) * direction;
-          }
-          return aVal.localeCompare(bVal, undefined, {numeric: true}) * direction;
-        });
-      }
+      // Initial render
+      document.addEventListener('DOMContentLoaded', function() {
+        // Set default page size
+        document.getElementById('page-size').value = '10';
+        updateTable();
+      });
     </script>
   </body>
   </html>`;
