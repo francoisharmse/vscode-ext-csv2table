@@ -1,0 +1,48 @@
+{
+  "name": "csv-table-viewer",
+  "displayName": "CSV Table Viewer",
+  "description": "A VS Code extension to display CSV files as interactive tables (like Excel)",
+  "version": "0.0.1",
+  "publisher": "your-name",
+  "engines": {
+    "vscode": ">=1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:csvTableViewer.openCsvAsTable"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "csvTableViewer.openCsvAsTable",
+        "title": "CSV: Open as Table"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "csvTableViewer.openCsvAsTable",
+          "when": "resourceExtname == .csv",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.70.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "papaparse": "^5.4.1"
+  }
+}

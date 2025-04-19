@@ -1,0 +1,5 @@
+out/test
+node_modules
+.vscode-test
+.gitignore
+README.md
