@@ -72,7 +72,7 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
     <table id="csv-table">
       <thead>
         <tr>
-          <th>#</th>
+          <th>#<br><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
           ${fields.map((f, i) => `<th onclick=\"sortTable(${i})\" id=\"header-${i}\">${f}</th>`).join("")}
         </tr>
         <tr>
@@ -105,6 +105,12 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
       let filters = Array(fields.length).fill('');
       let currentPage = 1;
       let pageSize = 10;
+      let selectedRows = new Set();
+
+      function rowKey(row) {
+        // Use a stable string representation as unique key
+        return JSON.stringify(row);
+      }
 
       function getFilteredData() {
         return data.filter(row => {
@@ -137,47 +143,63 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
           startIdx = (currentPage - 1) * pageSize;
           pagedRows = rows.slice(startIdx, startIdx + pageSize);
         }
-        tbody.innerHTML = pagedRows.map((row, idx) =>
-          '<tr><td>' + (startIdx + idx + 1) + '</td>' +
-          fields.map(f => '<td>' + (row[f] ?? '') + '</td>').join('') +
-          '</tr>'
-        ).join('');
+        tbody.innerHTML = pagedRows.map(function(row, idx) {
+          var key = rowKey(row);
+          var checked = selectedRows.has(key) ? 'checked' : '';
+          return '<tr>' +
+            '<td><input type="checkbox" class="row-checkbox" data-key="' + key.replace(/"/g, '&quot;') + '" onclick="onRowSelect(this)" ' + checked + '> ' + (startIdx + idx + 1) + '</td>' +
+            fields.map(function(f) { return '<td>' + (row[f] ?? '') + '</td>'; }).join('') +
+            '</tr>';
+        }).join('');
         renderPagination(rows.length);
+        updateSelectAllCheckbox();
       }
 
-      function renderPagination(totalRows) {
-        const pageButtons = document.getElementById('page-buttons');
-        const pageInfo = document.getElementById('page-info');
-        let totalPages = 1;
-        if (pageSize === 'all') {
-          totalPages = 1;
-          currentPage = 1;
+      function onRowSelect(checkbox) {
+        const key = checkbox.getAttribute('data-key');
+        if (checkbox.checked) {
+          selectedRows.add(key);
         } else {
-          totalPages = Math.ceil(totalRows / pageSize);
-          if (currentPage > totalPages) currentPage = totalPages;
+          selectedRows.delete(key);
         }
-        let buttonsHtml = '';
-        if (totalPages > 1) {
-          buttonsHtml += '<button onclick="gotoPage(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>|<</button>';
-          buttonsHtml += '<button onclick="gotoPage(' + (currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '><</button>';
-          for (let p = 1; p <= totalPages; ++p) {
-            if (p === currentPage) {
-              buttonsHtml += '<button disabled>' + p + '</button>';
-            } else if (p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2) {
-              buttonsHtml += '<button onclick="gotoPage(' + p + ')">' + p + '</button>';
-            } else if (p === currentPage - 3 || p === currentPage + 3) {
-              buttonsHtml += '...';
-            }
-          }
-          buttonsHtml += '<button onclick="gotoPage(' + (currentPage + 1) + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>></button>';
-          buttonsHtml += '<button onclick="gotoPage(' + totalPages + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>>|</button>';
+        updateSelectAllCheckbox();
+      }
+
+      function toggleSelectAll(headerCheckbox) {
+        const checkboxes = document.querySelectorAll('.row-checkbox');
+        if (headerCheckbox.checked) {
+          checkboxes.forEach(cb => {
+            cb.checked = true;
+            selectedRows.add(cb.getAttribute('data-key'));
+          });
+        } else {
+          checkboxes.forEach(cb => {
+            cb.checked = false;
+            selectedRows.delete(cb.getAttribute('data-key'));
+          });
         }
-        pageButtons.innerHTML = buttonsHtml;
-        pageInfo.textContent = totalRows === 0
-          ? 'No records'
-          : 'Showing ' + (pageSize === 'all' ? 1 : ((currentPage - 1) * pageSize + 1)) +
-            '–' + (pageSize === 'all' ? totalRows : Math.min(currentPage * pageSize, totalRows)) +
-            ' of ' + totalRows;
+        updateSelectAllCheckbox();
+      }
+
+      function updateSelectAllCheckbox() {
+        const checkboxes = document.querySelectorAll('.row-checkbox');
+        const selectAll = document.getElementById('select-all');
+        if (checkboxes.length === 0) {
+          selectAll.checked = false;
+          selectAll.indeterminate = false;
+          return;
+        }
+        const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        if (checkedCount === 0) {
+          selectAll.checked = false;
+          selectAll.indeterminate = false;
+        } else if (checkedCount === checkboxes.length) {
+          selectAll.checked = true;
+          selectAll.indeterminate = false;
+        } else {
+          selectAll.checked = false;
+          selectAll.indeterminate = true;
+        }
       }
 
       function gotoPage(page) {
