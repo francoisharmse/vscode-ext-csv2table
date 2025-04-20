@@ -72,11 +72,13 @@ function getHtmlForTable(data: any[], fields: string[] = []) {
     <table id="csv-table">
       <thead>
         <tr>
-          <th>#<br><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+          <th>#</th>
           ${fields.map((f, i) => `<th onclick=\"sortTable(${i})\" id=\"header-${i}\">${f}</th>`).join("")}
         </tr>
         <tr>
-          <th></th>
+          <th style="text-align: left;">
+            <input type="checkbox" id="select-all" onclick="toggleSelectAll(this)" style="float: left;">
+          </th>
           ${fields.map((_, i) => `<th><input class=\"filter-input\" id=\"filter-${i}\" oninput=\"onFilterInput()\" placeholder=\"Filter...\"></th>`).join("")}
         </tr>
       </thead>
